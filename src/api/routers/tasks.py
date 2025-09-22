@@ -20,22 +20,27 @@ def get_tasks():
         TaskResponse(task_id=task["id"],
                      description=task["description"],
                      priority=task["priority"],
-                     is_completed=task["is_completed"]).model_dump()
+                     is_completed=task["is_completed"])
         for task in tasks_data
     ]
 
-    return JSONResponse(content={"result": response_tasks_data}, status_code=status.HTTP_200_OK)
+    return {"result": response_tasks_data}
 
 
-@router.get("/{task_id}", tags=["tasks"])
+@router.get("/{task_id}", tags=["tasks"], response_model=GetSingleTaskResponse)
 def get_task_by_id(task_id: int):
     target_task = get_item_by_id(tasks_data, task_id)
     if not target_task:
         message = {"error": f"Task with id {task_id} not found"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content={"result": target_task})
+    response_target_task = TaskResponse(
+        task_id=target_task["id"],
+        description=target_task["description"],
+        priority=target_task["priority"],
+        is_completed=target_task["is_completed"]
+    )
+    return {"result": response_target_task}
 
 
 @router.post("", tags=["tasks"], status_code=status.HTTP_201_CREATED,
@@ -66,7 +71,8 @@ def delete_task_by_id(task_id: int):
     tasks_data.pop(target_index)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-@router.put("/{task_id}", tags=["tasks"])
+
+@router.put("/{task_id}", tags=["tasks"], response_model=PutTaskResponse)
 def update_task(task_id:int, body: TaskBody):
     target_index = get_item_index_by_id(tasks_data, task_id)
 
@@ -79,6 +85,13 @@ def update_task(task_id:int, body: TaskBody):
     updated_task["id"] = task_id
     tasks_data[target_index] = updated_task
 
+    response_updated_task = TaskResponse(
+        task_id=updated_task["id"],
+        description=updated_task["description"],
+        priority=updated_task["priority"],
+        is_completed=updated_task["is_completed"],
+    )
+
     message = {"message": f"Task with id {task_id} updated",
-               "new_value": updated_task}
-    return JSONResponse(status_code=status.HTTP_200_OK, content=message)
+               "new_value": response_updated_task}
+    return message
