@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Response
 from fastapi.responses import JSONResponse
 
-from api.models import TaskBody
+from api.models import (TaskBody, TaskResponse, GetAllTasksResponse, PostTaskResponse,
+                        GetSingleTaskResponse, PutTaskResponse)
 from api.utils import get_item_by_id, get_item_index_by_id
 
 
@@ -13,10 +14,17 @@ tasks_data = [
 router = APIRouter(prefix="/tasks")
 
 
-@router.get("", tags=["tasks"], description="Get all tasks")
+@router.get("", tags=["tasks"], description="Get all tasks", response_model=GetAllTasksResponse)
 def get_tasks():
-    return JSONResponse(status_code=status.HTTP_200_OK,
-                        content={"result": tasks_data})
+    response_tasks_data = [
+        TaskResponse(task_id=task["id"],
+                     description=task["description"],
+                     priority=task["priority"],
+                     is_completed=task["is_completed"]).model_dump()
+        for task in tasks_data
+    ]
+
+    return JSONResponse(content={"result": response_tasks_data}, status_code=status.HTTP_200_OK)
 
 
 @router.get("/{task_id}", tags=["tasks"])
@@ -30,13 +38,22 @@ def get_task_by_id(task_id: int):
                         content={"result": target_task})
 
 
-@router.post("", tags=["tasks"], status_code=status.HTTP_201_CREATED)
+@router.post("", tags=["tasks"], status_code=status.HTTP_201_CREATED,
+             response_model=PostTaskResponse)
 def create_task(body: TaskBody):
     new_task: dict = body.model_dump()
     new_task_id: int = max(task["id"] for task in tasks_data) + 1
     new_task["id"] = new_task_id
     tasks_data.append(new_task)
-    return {"message": "New task added", "details": new_task}
+
+    response_new_task = TaskResponse(
+        task_id=new_task["id"],
+        description=new_task["description"],
+        priority=new_task["priority"],
+        is_completed=new_task["is_completed"],
+    )
+
+    return {"message": "New task added", "details": response_new_task}
 
 
 @router.delete("/{task_id}", tags=["tasks"])
