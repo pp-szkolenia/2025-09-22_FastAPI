@@ -17,6 +17,10 @@ class UserBody(BaseModel):
     is_admin: bool = False
 
 
+def get_item_by_id(items_list, item_id):
+    return next((item for item in items_list if item["id"] == item_id), None)
+
+
 tasks_data = [
     {"id": 1, "description": "Learn FastAPI", "priority": 3, "is_completed": True},
     {"id": 2, "description": "Do exercises", "priority": 2, "is_completed": False}
@@ -37,12 +41,6 @@ def root():
 def get_tasks():
     return {"result": tasks_data}
 
-
-@app.get("/users")
-def get_users():
-    return {"result": users_data}
-
-
 @app.post("/tasks")
 def create_task(body: TaskBody):
     new_task: dict = body.model_dump()
@@ -50,6 +48,17 @@ def create_task(body: TaskBody):
     new_task["id"] = new_task_id
     tasks_data.append(new_task)
     return {"message": "New task added", "details": new_task}
+
+
+@app.get("/users")
+def get_users():
+    return {"result": users_data}
+
+
+@app.get("/users/{user_id}")
+def get_user_by_id(user_id: int):
+    target_user = get_item_by_id(users_data, user_id)
+    return {"result": target_user}
 
 
 @app.post("/users")
