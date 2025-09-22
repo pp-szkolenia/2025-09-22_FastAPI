@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 
@@ -39,16 +40,21 @@ def root():
 
 @app.get("/tasks")
 def get_tasks():
-    return {"result": tasks_data}
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content={"result": tasks_data})
 
 
 @app.get("/tasks/{task_id}")
 def get_task_by_id(task_id: int):
     target_task = get_item_by_id(tasks_data, task_id)
+    if not target_task:
+        message = {"error": f"Task with id {task_id} not found"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
+
     return {"result": target_task}
 
 
-@app.post("/tasks")
+@app.post("/tasks", status_code=status.HTTP_201_CREATED)
 def create_task(body: TaskBody):
     new_task: dict = body.model_dump()
     new_task_id: int = max(task["id"] for task in tasks_data) + 1
