@@ -41,6 +41,13 @@ def root():
 def get_tasks():
     return {"result": tasks_data}
 
+
+@app.get("/tasks/{task_id}")
+def get_task_by_id(task_id: int):
+    target_task = get_item_by_id(tasks_data, task_id)
+    return {"result": target_task}
+
+
 @app.post("/tasks")
 def create_task(body: TaskBody):
     new_task: dict = body.model_dump()
