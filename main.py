@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -20,6 +20,10 @@ class UserBody(BaseModel):
 
 def get_item_by_id(items_list, item_id):
     return next((item for item in items_list if item["id"] == item_id), None)
+
+
+def get_item_index_by_id(items_list, item_id):
+    return next((i for i, item in enumerate(items_list) if item["id"] == item_id), None)
 
 
 tasks_data = [
@@ -63,6 +67,17 @@ def create_task(body: TaskBody):
     new_task["id"] = new_task_id
     tasks_data.append(new_task)
     return {"message": "New task added", "details": new_task}
+
+
+@app.delete("/tasks/{task_id}")
+def delete_task_by_id(task_id: int):
+    target_index = get_item_index_by_id(tasks_data, task_id)
+    if target_index is None:
+        message = {"error": f"Task with id {task_id} not found"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=message)
+    tasks_data.pop(target_index)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.get("/users")
