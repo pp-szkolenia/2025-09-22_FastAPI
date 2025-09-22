@@ -35,7 +35,8 @@ users_data = [
 
 @app.get("/")
 def root():
-    return {"message": "Hello World"}
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content={"message": "Hello World"})
 
 
 @app.get("/tasks")
@@ -51,7 +52,8 @@ def get_task_by_id(task_id: int):
         message = {"error": f"Task with id {task_id} not found"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
-    return {"result": target_task}
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content={"result": target_task})
 
 
 @app.post("/tasks", status_code=status.HTTP_201_CREATED)
@@ -65,7 +67,8 @@ def create_task(body: TaskBody):
 
 @app.get("/users")
 def get_users():
-    return {"result": users_data}
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content={"result": users_data})
 
 
 @app.get("/users/{user_id}")
@@ -75,10 +78,11 @@ def get_user_by_id(user_id: int):
         message = {"error": f"User with id {user_id} not found"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
-    return {"result": target_user}
+    return JSONResponse(status_code=status.HTTP_200_OK,
+                        content={"result": target_user})
 
 
-@app.post("/users")
+@app.post("/users", status_code=status.HTTP_201_CREATED)
 def create_user(body: UserBody):
     new_user: dict = body.model_dump()
     new_user_id: int = max(user["id"] for user in users_data) + 1
