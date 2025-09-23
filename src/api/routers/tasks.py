@@ -1,109 +1,107 @@
-from fastapi import APIRouter, HTTPException, status, Response
+from fastapi import APIRouter, HTTPException, status, Response, Depends, Query
 from fastapi.responses import JSONResponse
 
+from sqlalchemy.orm import Session
 from api.models import (TaskBody, TaskResponse, GetAllTasksResponse, PostTaskResponse,
                         GetSingleTaskResponse, PutTaskResponse)
 from api.utils import get_item_by_id, get_item_index_by_id
 from db.utils import connect_to_db
+from db.orm import get_session
+from db.models import Task
+from sqlalchemy import select, func, asc, desc
 
-
-tasks_data = [
-    {"id": 1, "description": "Learn FastAPI", "priority": 3, "is_completed": True},
-    {"id": 2, "description": "Do exercises", "priority": 2, "is_completed": False}
-]
 
 router = APIRouter(prefix="/tasks")
 
 
 @router.get("", tags=["tasks"], description="Get all tasks", response_model=GetAllTasksResponse)
-def get_tasks():
-    conn, cursor = connect_to_db()
-    cursor.execute("SELECT * FROM tasks")
-    tasks_data = cursor.fetchall()
-    cursor.close()
-    conn.close()
+def get_tasks(session: Session = Depends(get_session)):
+    with session:
+        stmt = select(Task)
+        tasks_data = session.scalars(stmt).all()
 
     response_tasks_data = [
-        TaskResponse(task_id=task["id"],
-                     description=task["description"],
-                     priority=task["priority"],
-                     is_completed=task["is_completed"])
+        TaskResponse(task_id=task.id_number,
+                     description=task.description,
+                     priority=task.priority,
+                     is_completed=task.is_completed)
         for task in tasks_data
     ]
-
     return {"result": response_tasks_data}
 
 
-@router.get("/{task_id}", tags=["tasks"], response_model=GetSingleTaskResponse)
-def get_task_by_id(task_id: int):
-    target_task = get_item_by_id(tasks_data, task_id)
-    if not target_task:
-        message = {"error": f"Task with id {task_id} not found"}
+@router.get('/{task_id}', tags=["tasks"], description="Get task by ID")
+def get_task_by_id(task_id: int, session: Session = Depends(get_session)):
+    with session:
+        stmt = select(Task).where(Task.id_number == task_id)
+        tasks_data = session.scalars(stmt).first()
+
+    if not tasks_data:
+        message = {'error': f'Task with id: {task_id} NOT FOUND'}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
-    response_target_task = TaskResponse(
-        task_id=target_task["id"],
-        description=target_task["description"],
-        priority=target_task["priority"],
-        is_completed=target_task["is_completed"]
-    )
-    return {"result": response_target_task}
+    tasks_data_response = {
+        "id": tasks_data.id_number,
+        "description": tasks_data.description,
+        "priority": tasks_data.priority,
+        "is_completed": tasks_data.is_completed
+    }
+
+    msg = {"result": tasks_data_response}
+    return msg
 
 
-@router.post("", tags=["tasks"], status_code=status.HTTP_201_CREATED,
-             response_model=PostTaskResponse)
-def create_task(body: TaskBody):
-    conn, cursor = connect_to_db()
-    insert_query_template = f"""INSERT INTO tasks (description, priority, is_completed)
-                                VALUES (%s, %s, %s) RETURNING *"""
-    insert_query_values = (body.description, body.priority, body.is_completed)
-    cursor.execute(insert_query_template, insert_query_values)
-    new_task = cursor.fetchone()
-    conn.commit()
-    cursor.close()
-    conn.close()
+@router.post('', status_code=status.HTTP_201_CREATED, tags=["tasks"], description="Create new task")
+def create_task(body: TaskBody, session: Session = Depends(get_session)):
+    new_task = Task(**body.model_dump())
+    with session:
+        session.add(new_task)
+        session.commit()
+        session.refresh(new_task)
 
-    response_new_task = TaskResponse(
-        task_id=new_task["id"],
-        description=new_task["description"],
-        priority=new_task["priority"],
-        is_completed=new_task["is_completed"],
-    )
-
-    return {"message": "New task added", "details": response_new_task}
+    msg = {'message': 'New task added', 'details': new_task}
+    return msg
 
 
-@router.delete("/{task_id}", tags=["tasks"])
-def delete_task_by_id(task_id: int):
-    target_index = get_item_index_by_id(tasks_data, task_id)
-    if target_index is None:
-        message = {"error": f"Task with id {task_id} not found"}
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=message)
-    tasks_data.pop(target_index)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+@router.delete('/{task_id}', tags=["tasks"], description="Delete task by ID")
+def delete_task_by_id(task_id: int, session: Session = Depends(get_session)):
+    with session:
+        stmt = select(Task).where(Task.id_number == task_id)
+        target_task = session.scalars(stmt).first()
+
+    if not target_task:
+        message = {'error': f'User with id: {task_id} NOT FOUND'}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
+    else:
+        session.delete(target_task)
+        session.commit()
+
+    return Response(status_code=status.HTTP_202_ACCEPTED)
 
 
-@router.put("/{task_id}", tags=["tasks"], response_model=PutTaskResponse)
-def update_task(task_id:int, body: TaskBody):
-    target_index = get_item_index_by_id(tasks_data, task_id)
+@router.put('/{task_id}', tags=["tasks"], description="Update task by ID")
+def update_task(task_id: int, body: TaskBody, session: Session = Depends(get_session)):
+    with session:
+        stmt = select(Task).where(Task.id_number == task_id)
+        target_task = session.scalars(stmt).first()
 
-    if target_index is None:
-        message = {"error": f"Task with id {task_id} does not exist"}
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=message)
+        if not target_task:
+            message = {'error': f'User with id: {task_id} NOT FOUND'}
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
+        else:
+            update_task = target_task
+            for field, value in body.model_dump().items():
+                setattr(update_task, field, value)
+            session.commit()
 
-    updated_task: dict = body.model_dump()
-    updated_task["id"] = task_id
-    tasks_data[target_index] = updated_task
+        response_update_task = {
+            "user_id": update_task.id_number,
+            "description": update_task.description,
+            "priority": update_task.priority,
+            "is_completed": update_task.is_completed
+        }
 
-    response_updated_task = TaskResponse(
-        task_id=updated_task["id"],
-        description=updated_task["description"],
-        priority=updated_task["priority"],
-        is_completed=updated_task["is_completed"],
-    )
-
-    message = {"message": f"Task with id {task_id} updated",
-               "new_value": response_updated_task}
-    return message
+        message = {
+            "message": f"User with id: {task_id} updated",
+            "new_value": response_update_task, }
+        return message

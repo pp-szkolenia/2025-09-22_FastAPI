@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Response, Depends
+from fastapi import APIRouter, HTTPException, status, Response, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func, asc, desc
+from typing import Literal
 
 from api.models import UserBody
 from api.utils import get_item_by_id, get_item_index_by_id
@@ -9,19 +10,28 @@ from db.orm import get_session
 from db.models import User
 
 
-users_data = [
-    {"id": 1, "username": "Andrzej", "password": "qwerty123", "is_admin": True},
-    {"id": 2, "username": "Andżela", "password": "hasło1!", "is_admin": False},
-]
-
 router = APIRouter()
 
 
 @router.get("/users")
-def get_users(session: Session = Depends(get_session)):
+def get_users(session: Session = Depends(get_session), is_admin: bool | None = None,
+              min_password_length: int | None = None,
+              sort_by_username: Literal["asc", "desc"] = Query(None, alias="sortByUsername")):
     with session:
-        stmt = select(User)
-        users_data = session.scalars(stmt).all()
+        users_query = select(User)
+
+        if is_admin is not None:
+            users_query = users_query.where(User.is_admin == is_admin)
+        if min_password_length is not None:
+            users_query = users_query.where(func.char_length(User.password) >= min_password_length)
+        if sort_by_username is not None:
+            if sort_by_username == "asc":
+                sort_func = asc
+            elif sort_by_username == "desc":
+                sort_func = desc
+
+            users_query = users_query.order_by(sort_func(User.username))
+        users_data = session.scalars(users_query).all()
 
     users_data_response = [
         {
