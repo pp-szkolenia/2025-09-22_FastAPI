@@ -8,17 +8,34 @@ from api.utils import get_item_by_id, get_item_index_by_id
 from db.utils import connect_to_db
 from db.orm import get_session
 from db.models import Task
-from sqlalchemy import select, func, asc, desc
+from typing import Literal
+from sqlalchemy import select, func, asc, desc, between
 
 
 router = APIRouter(prefix="/tasks")
 
 
 @router.get("", tags=["tasks"], description="Get all tasks", response_model=GetAllTasksResponse)
-def get_tasks(session: Session = Depends(get_session)):
+async def get_tasks(session: Session = Depends(get_session),
+              is_completed: bool | None = None,
+              min_priority: int = 1, max_priority: int = 5,
+              sort_by_description: Literal["asc", "desc"] = Query(
+                  None, alias="sortByDescription"
+              )):
     with session:
-        stmt = select(Task)
-        tasks_data = session.scalars(stmt).all()
+        tasks_query = select(Task).where(between(Task.priority, min_priority, max_priority))
+        if is_completed is not None:
+            tasks_query = tasks_query.where(Task.is_completed == is_completed)
+
+        if sort_by_description is not None:
+            if sort_by_description == "asc":
+                sort_func = asc
+            elif sort_by_description == "desc":
+                sort_func = desc
+
+            tasks_query = tasks_query.order_by(sort_func(Task.description))
+
+        tasks_data = session.scalars(tasks_query).all()
 
     response_tasks_data = [
         TaskResponse(task_id=task.id_number,
@@ -31,7 +48,7 @@ def get_tasks(session: Session = Depends(get_session)):
 
 
 @router.get('/{task_id}', tags=["tasks"], description="Get task by ID")
-def get_task_by_id(task_id: int, session: Session = Depends(get_session)):
+async def get_task_by_id(task_id: int, session: Session = Depends(get_session)):
     with session:
         stmt = select(Task).where(Task.id_number == task_id)
         tasks_data = session.scalars(stmt).first()
@@ -52,7 +69,7 @@ def get_task_by_id(task_id: int, session: Session = Depends(get_session)):
 
 
 @router.post('', status_code=status.HTTP_201_CREATED, tags=["tasks"], description="Create new task")
-def create_task(body: TaskBody, session: Session = Depends(get_session)):
+async def create_task(body: TaskBody, session: Session = Depends(get_session)):
     new_task = Task(**body.model_dump())
     with session:
         session.add(new_task)
