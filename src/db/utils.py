@@ -3,7 +3,7 @@ import psycopg
 from dotenv import load_dotenv
 
 
-def get_db_crentials():
+def get_db_credentials():
     load_dotenv()
     return {
         "user": os.environ["DB_USER"],
@@ -15,7 +15,7 @@ def get_db_crentials():
 
 
 def get_connection_string():
-    credentials = get_db_crentials()
+    credentials = get_db_credentials()
     user = credentials["user"]
     password = credentials["password"]
     host = credentials["host"]
@@ -26,7 +26,7 @@ def get_connection_string():
 
 
 def connect_to_db():
-    credentials = get_db_crentials()
+    credentials = get_db_credentials()
     connection = psycopg.connect(**credentials)
-    cursor = connection.cursor(row_factory=psycopg.rows.dict_row_factory)
+    cursor = connection.cursor(row_factory=psycopg.rows.dict_row)
     return connection, cursor

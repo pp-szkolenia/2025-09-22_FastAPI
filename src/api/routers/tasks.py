@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from api.models import (TaskBody, TaskResponse, GetAllTasksResponse, PostTaskResponse,
                         GetSingleTaskResponse, PutTaskResponse)
 from api.utils import get_item_by_id, get_item_index_by_id
+from db.utils import connect_to_db
 
 
 tasks_data = [
@@ -16,6 +17,12 @@ router = APIRouter(prefix="/tasks")
 
 @router.get("", tags=["tasks"], description="Get all tasks", response_model=GetAllTasksResponse)
 def get_tasks():
+    conn, cursor = connect_to_db()
+    cursor.execute("SELECT * FROM tasks")
+    tasks_data = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
     response_tasks_data = [
         TaskResponse(task_id=task["id"],
                      description=task["description"],
@@ -46,10 +53,15 @@ def get_task_by_id(task_id: int):
 @router.post("", tags=["tasks"], status_code=status.HTTP_201_CREATED,
              response_model=PostTaskResponse)
 def create_task(body: TaskBody):
-    new_task: dict = body.model_dump()
-    new_task_id: int = max(task["id"] for task in tasks_data) + 1
-    new_task["id"] = new_task_id
-    tasks_data.append(new_task)
+    conn, cursor = connect_to_db()
+    insert_query_template = f"""INSERT INTO tasks (description, priority, is_completed)
+                                VALUES (%s, %s, %s) RETURNING *"""
+    insert_query_values = (body.description, body.priority, body.is_completed)
+    cursor.execute(insert_query_template, insert_query_values)
+    new_task = cursor.fetchone()
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     response_new_task = TaskResponse(
         task_id=new_task["id"],
