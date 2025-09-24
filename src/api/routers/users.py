@@ -5,7 +5,7 @@ from sqlalchemy import select, func, asc, desc
 from typing import Literal
 
 from api.models import UserBody
-from api.utils import get_item_by_id, get_item_index_by_id
+from api.utils import hash_password_in_body
 from db.orm import get_session
 from db.models import User
 
@@ -69,6 +69,7 @@ def get_user_by_id(user_id: int, session: Session = Depends(get_session)):
 
 @router.post("/users", status_code=status.HTTP_201_CREATED)
 def create_user(body: UserBody, session: Session = Depends(get_session)):
+    body = hash_password_in_body(body)
     new_user = User(**body.model_dump())
     with session:
         session.add(new_user)
@@ -107,6 +108,7 @@ def update_user(user_id:int, body: UserBody, session: Session = Depends(get_sess
                                 detail=message)
         else:
             update_user = target_user
+            body = hash_password_in_body(body)
             for field, value in body.model_dump().items():
                 setattr(update_user, field, value)
             session.commit()

@@ -4,7 +4,6 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from api.models import (TaskBody, TaskResponse, GetAllTasksResponse, PostTaskResponse,
                         GetSingleTaskResponse, PutTaskResponse)
-from api.utils import get_item_by_id, get_item_index_by_id
 from db.utils import connect_to_db
 from db.orm import get_session
 from db.models import Task
@@ -103,7 +102,7 @@ def update_task(task_id: int, body: TaskBody, session: Session = Depends(get_ses
         target_task = session.scalars(stmt).first()
 
         if not target_task:
-            message = {'error': f'User with id: {task_id} NOT FOUND'}
+            message = {'error': f'Task with id: {task_id} NOT FOUND'}
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
         else:
             update_task = target_task
@@ -112,13 +111,13 @@ def update_task(task_id: int, body: TaskBody, session: Session = Depends(get_ses
             session.commit()
 
         response_update_task = {
-            "user_id": update_task.id_number,
+            "task_id": update_task.id_number,
             "description": update_task.description,
             "priority": update_task.priority,
             "is_completed": update_task.is_completed
         }
 
         message = {
-            "message": f"User with id: {task_id} updated",
+            "message": f"Task with id: {task_id} updated",
             "new_value": response_update_task, }
         return message
