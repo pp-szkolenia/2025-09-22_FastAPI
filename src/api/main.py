@@ -1,7 +1,9 @@
-from fastapi import FastAPI, status
+from fastapi import FastAPI, status, Request
 from fastapi.responses import JSONResponse
+import time
 
 from api.routers import users, tasks, auth
+from api.middleware import confirm_deletion
 
 
 app = FastAPI(
@@ -15,6 +17,21 @@ app = FastAPI(
 app.include_router(tasks.router)
 app.include_router(users.router)
 app.include_router(auth.router)
+
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    print(type(response))
+
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    response.headers["Server"] = "update"
+    return response
+
+
+app.middleware("http")(confirm_deletion)
 
 
 @app.get("/", description="Test endpoint for demonstration purposes")
