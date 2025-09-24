@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 import time
 
 from api.routers import users, tasks, auth
-from api.middleware import confirm_deletion
+from api.middleware import confirm_deletion, log_operations
 
 
 app = FastAPI(
@@ -32,6 +32,7 @@ async def add_process_time_header(request: Request, call_next):
 
 
 app.middleware("http")(confirm_deletion)
+app.middleware("http")(log_operations)
 
 
 @app.get("/", description="Test endpoint for demonstration purposes")
