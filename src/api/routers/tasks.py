@@ -1,14 +1,13 @@
 from fastapi import APIRouter, HTTPException, status, Response, Depends, Query
-from fastapi.responses import JSONResponse
 
 from sqlalchemy.orm import Session
-from api.models import (TaskBody, TaskResponse, GetAllTasksResponse, PostTaskResponse,
-                        GetSingleTaskResponse, PutTaskResponse)
-from db.utils import connect_to_db
+from api.models import (TaskBody, TaskResponse, GetAllTasksResponse, TokenData)
 from db.orm import get_session
 from db.models import Task
 from typing import Literal
 from sqlalchemy import select, func, asc, desc, between
+
+from api import oauth2
 
 
 router = APIRouter(prefix="/tasks")
@@ -68,19 +67,21 @@ async def get_task_by_id(task_id: int, session: Session = Depends(get_session)):
 
 
 @router.post('', status_code=status.HTTP_201_CREATED, tags=["tasks"], description="Create new task")
-async def create_task(body: TaskBody, session: Session = Depends(get_session)):
+async def create_task(body: TaskBody, session: Session = Depends(get_session),
+                      user_data: TokenData = Depends(oauth2.get_current_user)):
     new_task = Task(**body.model_dump())
     with session:
         session.add(new_task)
         session.commit()
         session.refresh(new_task)
 
-    msg = {'message': 'New task added', 'details': new_task}
+    msg = {'message': f'New task added by user: {user_data.user_id}', 'details': new_task}
     return msg
 
 
 @router.delete('/{task_id}', tags=["tasks"], description="Delete task by ID")
-def delete_task_by_id(task_id: int, session: Session = Depends(get_session)):
+def delete_task_by_id(task_id: int, session: Session = Depends(get_session),
+                      _: TokenData = Depends(oauth2.get_current_user)):
     with session:
         stmt = select(Task).where(Task.id_number == task_id)
         target_task = session.scalars(stmt).first()
@@ -96,7 +97,8 @@ def delete_task_by_id(task_id: int, session: Session = Depends(get_session)):
 
 
 @router.put('/{task_id}', tags=["tasks"], description="Update task by ID")
-def update_task(task_id: int, body: TaskBody, session: Session = Depends(get_session)):
+def update_task(task_id: int, body: TaskBody, session: Session = Depends(get_session),
+                user_data: TokenData = Depends(oauth2.get_current_user)):
     with session:
         stmt = select(Task).where(Task.id_number == task_id)
         target_task = session.scalars(stmt).first()
@@ -118,6 +120,6 @@ def update_task(task_id: int, body: TaskBody, session: Session = Depends(get_ses
         }
 
         message = {
-            "message": f"Task with id: {task_id} updated",
+            "message": f"Task with id: {task_id} updated by user {user_data.user_id} ",
             "new_value": response_update_task, }
         return message
