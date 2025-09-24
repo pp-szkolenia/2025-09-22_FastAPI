@@ -4,10 +4,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func, asc, desc
 from typing import Literal
 
-from api.models import UserBody
+from api.models import UserBody, TokenData
 from api.utils import hash_password_in_body
 from db.orm import get_session
 from db.models import User
+from api import oauth2
 
 
 router = APIRouter()
@@ -16,7 +17,12 @@ router = APIRouter()
 @router.get("/users")
 def get_users(session: Session = Depends(get_session), is_admin: bool | None = None,
               min_password_length: int | None = None,
-              sort_by_username: Literal["asc", "desc"] = Query(None, alias="sortByUsername")):
+              sort_by_username: Literal["asc", "desc"] = Query(None, alias="sortByUsername"),
+              user_data: TokenData = Depends(oauth2.get_current_user)):
+    if not user_data.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Only admin can perform this operation")
+
     with session:
         users_query = select(User)
 
@@ -80,7 +86,12 @@ def create_user(body: UserBody, session: Session = Depends(get_session)):
 
 
 @router.delete("/users/{user_id}", include_in_schema=True)
-def delete_user_by_id(user_id: int, session: Session = Depends(get_session)):
+def delete_user_by_id(user_id: int, session: Session = Depends(get_session),
+                      user_data: TokenData = Depends(oauth2.get_current_user)):
+    if not (user_data.is_admin or user_data.user_id == user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="You are not authorized to perform this operation")
+
     with session:
         stmt = select(User).where(User.id_number==user_id)
         target_user = session.scalars(stmt).first()
@@ -97,7 +108,11 @@ def delete_user_by_id(user_id: int, session: Session = Depends(get_session)):
 
 
 @router.put("/users/{user_id}")
-def update_user(user_id:int, body: UserBody, session: Session = Depends(get_session)):
+def update_user(user_id:int, body: UserBody, session: Session = Depends(get_session),
+                user_data: TokenData = Depends(oauth2.get_current_user)):
+    if not (user_data.is_admin or user_data.user_id == user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="You are not authorized to perform this operation")
     with session:
         stmt = select(User).where(User.id_number == user_id)
         target_user = session.scalars(stmt).first()
