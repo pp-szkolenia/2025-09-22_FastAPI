@@ -27,15 +27,27 @@ def load_data_once():
     if not st.session_state.get("jwt") or st.session_state.get("data_loaded"):
         return
 
-    st.session_state.tasks = [
-        {"task_id": 1, "description": "Zadanie 1", "priority": 1, "is_completed": False},
-        {"task_id": 2, "description": "Zadanie 2", "priority": 2, "is_completed": True}
-    ]
+    try:
+        r = requests.get(f"{st.session_state['API_BASE']}/tasks", headers=_auth_headers(), timeout=10)
+        st.session_state.tasks = r.json()["result"] if r.status_code == 200 else []
+        if r.status_code != 200:
+            st.session_state.tasks_error = f"GET /tasks failed: {r.status_code}"
+    except Exception as e:
+        st.session_state.tasks = []
+        st.session_state.tasks_error = f"GET /tasks error: {e}"
 
-    st.session_state.users = [
-        {"user_id": 1, "username": "User 1", "password": "pass1", "is_admin": False},
-        {"user_id": 2, "username": "User 2", "priority": "pass2", "is_admin": True}
-    ]
+    try:
+        r = requests.get(f"{st.session_state['API_BASE']}/users", headers=_auth_headers(), timeout=10)
+        if r.status_code == 200:
+            st.session_state.users = r.json()["result"]
+        elif r.status_code in (401, 403):
+            st.session_state.users = []
+        else:
+            st.session_state.users = []
+            st.session_state.users_error = f"GET /users failed: {r.status_code}"
+    except Exception as e:
+        st.session_state.users = []
+        st.session_state.users_error = f"GET /users error: {e}"
 
     st.session_state.data_loaded = True
 

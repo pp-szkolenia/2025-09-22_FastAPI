@@ -12,15 +12,15 @@ def _auth_headers() -> dict:
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
-# def _refetch_tasks():
-#     try:
-#         r = requests.get(f"{_api_base()}/tasks", headers=_auth_headers(), timeout=10)
-#         if r.status_code == 200:
-#             st.session_state.tasks = r.json()["result"]
-#         else:
-#             st.error(f"GET /tasks failed: {r.status_code}")
-#     except Exception as e:
-#         st.error(f"GET /tasks error: {e}")
+def _refetch_tasks():
+    try:
+        r = requests.get(f"{_api_base()}/tasks", headers=_auth_headers(), timeout=10)
+        if r.status_code == 200:
+            st.session_state.tasks = r.json()["result"]
+        else:
+            st.error(f"GET /tasks failed: {r.status_code}")
+    except Exception as e:
+        st.error(f"GET /tasks error: {e}")
 
 
 def tasks_page(tasks):
@@ -33,7 +33,7 @@ def tasks_page(tasks):
     col_top = st.columns(3)
     with col_top[0]:
         if st.button("Refresh tasks"):
-            # _refetch_tasks()
+            _refetch_tasks()
             st.rerun()
 
     col1, col2 = st.columns(2)
@@ -46,9 +46,17 @@ def tasks_page(tasks):
             is_completed = st.checkbox("Completed")
             submit_task = st.form_submit_button("Add Task")
             if submit_task:
-                payload = {"task_id": len(st.session_state.tasks) + 1, "description": description,
-                           "priority": priority, "is_completed": is_completed}
-                st.session_state.tasks.append(payload)
+                try:
+                    payload = {"description": description, "priority": priority, "is_completed": is_completed}
+                    r = requests.post(f"{_api_base()}/tasks", json=payload, headers=_auth_headers(), timeout=10)
+                    if r.status_code in (200, 201):
+                        _refetch_tasks()
+                        st.success("Task added successfully.")
+                        st.rerun()
+                    else:
+                        st.error(f"POST /tasks failed: {r.status_code} {r.text}")
+                except Exception as e:
+                    st.error(f"POST /tasks error: {e}")
 
     with col2:
         with st.form("update_task_form"):
@@ -62,20 +70,17 @@ def tasks_page(tasks):
             submit_update = st.form_submit_button("Update Task")
             if submit_update and selected_task:
                 try:
-                    task_id = selected_task.get("task_id")
-                    idx = next((i for i, t in enumerate(tasks) if t.get("task_id") == task_id), None)
-
-                    updated_task = tasks[idx]
-                    updated_task["description"] = description_new
-                    updated_task["priority"] = priority_new
-                    updated_task["is_completed"] = is_completed_new
-
-                    st.session_state["tasks"][idx] = updated_task
-
-                    st.success(f"Task {task_id} updated successfully.")
-                    st.rerun()
+                    task_id = selected_task["task_id"]
+                    payload = {"description": description_new, "priority": priority_new, "is_completed": is_completed_new}
+                    r = requests.put(f"{_api_base()}/tasks/{task_id}", json=payload, headers=_auth_headers(), timeout=10)
+                    if r.status_code in (200, 204):
+                        _refetch_tasks()
+                        st.success(f"Task {task_id} updated successfully.")
+                        st.rerun()
+                    else:
+                        st.error(f"PUT /tasks/{task_id} failed: {r.status_code} {r.text}")
                 except Exception as e:
-                    st.error(f"Update error: {e}")
+                    st.error(f"PUT /tasks error: {e}")
 
     st.subheader("Delete Task")
     options_del = {f"{t.get('task_id')} – {t.get('description','')}": t for t in tasks}
@@ -83,24 +88,13 @@ def tasks_page(tasks):
     if st.button("Delete Task"):
         if options_del:
             try:
-                selected_task = options_del.get(selected_label_del)
-                if not selected_task:
-                    st.error("Nie wybrano zadania do usunięcia.")
+                task_id = options_del[selected_label_del]["task_id"]
+                r = requests.delete(f"{_api_base()}/tasks/{task_id}", headers=_auth_headers(), timeout=10)
+                if r.status_code in (200, 204):
+                    _refetch_tasks()
+                    st.success(f"Task {task_id} deleted successfully.")
+                    st.rerun()
                 else:
-                    task_id = selected_task.get("task_id")
-
-                    idx = next((i for i, t in enumerate(st.session_state["tasks"])
-                                if t.get("task_id") == task_id), None)
-
-                    if idx is None:
-                        st.error(f"Task with id {task_id} not found in session_state.")
-                    else:
-                        st.session_state["tasks"].pop(idx)
-
-                        if "delete_task_select" in st.session_state:
-                            del st.session_state["delete_task_select"]
-
-                        st.success(f"Task {task_id} deleted successfully.")
-                        st.rerun()
+                    st.error(f"DELETE /tasks/{task_id} failed: {r.status_code} {r.text}")
             except Exception as e:
-                st.error(f"Delete error: {e}")
+                st.error(f"DELETE /tasks error: {e}")
