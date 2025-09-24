@@ -37,3 +37,12 @@ class PutTaskResponse(BaseModel):
     message: str
     new_value: TaskResponse
 
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
